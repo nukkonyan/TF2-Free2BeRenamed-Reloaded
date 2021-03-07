@@ -46,7 +46,7 @@ public	Plugin	myinfo	=	{
 	name		=	"[TF2] Free2BeRenamed: Reloaded",
 	author		=	"Tk /id/Teamkiller324",
 	description	=	"New remade version of Free2BeRenamed from scratch",
-	version		=	"1.1.0",
+	version		=	"1.1.1",
 	url			=	"https://steamcommmunity.com/id/Teamkiller324"
 }
 
@@ -164,14 +164,16 @@ void F2BR_SetClientName(int client, char[] name)	{
 	else
 		FormatEx(p2p_newname, sizeof(p2p_newname), "%s %s %s", P2PPrefix, name, P2PSuffix);
 	
-	switch(TF2_IsPlayerPremium(client))	{		
-		case	true:	{
-			if(!StrEqual(P2PPrefix, "") && !ClientHasTagAlready[client])
-				SetClientInfo(client, "name", p2p_newname);
-		}
-		case	false:	{
-			if(!StrEqual(F2PPrefix, "") && !ClientHasTagAlready[client])
-				SetClientInfo(client, "name", f2p_newname);
+	if(!ClientHasTagAlready[client])	{
+		switch(TF2_IsPlayerPremium(client))	{		
+			case	true:	{
+				if(!StrEqual(P2PPrefix, ""))
+					SetClientInfo(client, "name", p2p_newname);
+			}
+			case	false:	{
+				if(!StrEqual(F2PPrefix, ""))
+					SetClientInfo(client, "name", f2p_newname);
+			}
 		}
 	}
 }
