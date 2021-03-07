@@ -46,7 +46,7 @@ public	Plugin	myinfo	=	{
 	name		=	"[TF2] Free2BeRenamed: Reloaded",
 	author		=	"Tk /id/Teamkiller324",
 	description	=	"New remade version of Free2BeRenamed from scratch",
-	version		=	"1.1.1",
+	version		=	"1.1.2",
 	url			=	"https://steamcommmunity.com/id/Teamkiller324"
 }
 
@@ -56,27 +56,82 @@ char	F2PPrefix[64],
 		P2PSuffix[64],
 		GetReason[64];
 
-ConVar	KickPlayer, KickType, KickReason;
+ConVar	KickPlayer,
+		KickType,
+		KickReason,
+		F2P_Prefix,
+		F2P_Suffix,
+		P2P_Prefix,
+		P2P_Suffix;
 
-bool	ClientHasTagAlready[MAXPLAYERS+1];
+bool	ClientHasTagAlready[MAXPLAYERS+1],
+		DEBUG=false;
 
 public void OnPluginStart()	{
-	ConVar	F2P_Prefix	=	CreateConVar("tf_f2p_prefix",	"[F2P]",	"Free-To-Plays Prefix");
-	ConVar	F2P_Suffix	=	CreateConVar("tf_f2p_suffix",	"",			"Free-To-Plays Suffix");
-	ConVar	P2P_Prefix	=	CreateConVar("tf_p2p_prefix",	"[P2P]",	"Premium-To-Play Prefix");
-	ConVar	P2P_Suffix	=	CreateConVar("tf_p2p_suffix",	"",			"Premium-To-Play Suffix");
+	F2P_Prefix	=	CreateConVar("tf_f2p_prefix",	"[F2P]",	"Free-To-Plays Prefix");
+	F2P_Suffix	=	CreateConVar("tf_f2p_suffix",	"",			"Free-To-Plays Suffix");
+	P2P_Prefix	=	CreateConVar("tf_p2p_prefix",	"[P2P]",	"Premium-To-Play Prefix");
+	P2P_Suffix	=	CreateConVar("tf_p2p_suffix",	"",			"Premium-To-Play Suffix");
 	
 	KickPlayer	=	CreateConVar("tf_f2br_kick",		"0",	"Should the player be kicked upon joining when they're Premium/F2P? \n0 = No One Will Be Kicked \n1 = Free-to-Play \n2 = Premium",	_, true, 0.0, true, 2.0);
 	KickType	=	CreateConVar("tf_f2br_kicktype",	"1",	"How should the player be kicked? \n1 = As soon you connect \n2 = When you get into the server.", _, true, 1.0, true, 2.0);
 	KickReason	=	CreateConVar("tf_f2br_kickreason",	"Place a reason here.",	"The kick reason when the user connects");
 	
+	F2P_Prefix.AddChangeHook(ConVar_F2PPrefix);
+	F2P_Suffix.AddChangeHook(ConVar_F2PSuffix);
+	P2P_Prefix.AddChangeHook(ConVar_P2PPrefix);
+	P2P_Suffix.AddChangeHook(ConVar_P2PSuffix);
+	KickReason.AddChangeHook(ConVar_KickReason);
+	
+	AutoExecConfig(true, "free2berenamed_reloaded");
+}
+
+public void OnConfigsExecuted()	{
 	F2P_Prefix.GetString(F2PPrefix, sizeof(F2PPrefix));
 	F2P_Suffix.GetString(F2PSuffix, sizeof(F2PSuffix));
 	P2P_Prefix.GetString(P2PPrefix, sizeof(P2PPrefix));
 	P2P_Suffix.GetString(P2PSuffix, sizeof(P2PSuffix));
 	KickReason.GetString(GetReason, sizeof(GetReason));
-	
-	AutoExecConfig(true, "free2berenamed_reloaded");
+}
+
+void ConVar_F2PPrefix(ConVar convar, const char[] oldvalue, const char[] newvalue)	{
+	if(DEBUG)	{
+		PrintToServer("F2P_Prefix : %s - %s", oldvalue, newvalue);
+		PrintToServer("F2PPrefix : %s", F2PPrefix);
+	}
+	F2P_Prefix.GetString(F2PPrefix, sizeof(F2PPrefix));
+}
+
+void ConVar_F2PSuffix(ConVar convar, const char[] oldvalue, const char[] newvalue)	{
+	if(DEBUG)	{
+		PrintToServer("F2P_Suffix : %s - %s", oldvalue, newvalue);
+		PrintToServer("F2PSuffix : %s", F2PPrefix);
+	}
+	F2P_Suffix.GetString(F2PSuffix, sizeof(F2PSuffix));
+}
+
+void ConVar_P2PPrefix(ConVar convar, const char[] oldvalue, const char[] newvalue)	{
+	if(DEBUG)	{
+		PrintToServer("P2P_Prefix : %s - %s", oldvalue, newvalue);
+		PrintToServer("P2PPrefix : %s", F2PPrefix);
+	}
+	P2P_Prefix.GetString(P2PPrefix, sizeof(P2PPrefix));
+}
+
+void ConVar_P2PSuffix(ConVar convar, const char[] oldvalue, const char[] newvalue)	{
+	if(DEBUG)	{
+		PrintToServer("P2P_Suffix : %s - %s", oldvalue, newvalue);
+		PrintToServer("P2PSuffix : %s", F2PPrefix);
+	}
+	P2P_Suffix.GetString(P2PSuffix, sizeof(P2PSuffix));
+}
+
+void ConVar_KickReason(ConVar convar, const char[] oldvalue, const char[] newvalue)	{
+	if(DEBUG)	{
+		PrintToServer("KickReason : %s - %s", oldvalue, newvalue);
+		PrintToServer("GetReason : %s", F2PPrefix);
+	}
+	KickReason.GetString(GetReason, sizeof(GetReason));
 }
 
 public void OnClientAuthorized(int client)	{
@@ -119,7 +174,11 @@ Action F2BR_SetClientNameTimer(Handle timer, any client)	{
 	
 	char getname[MAXPLAYERS+1][256];
 	GetClientInfo(client, "name", getname[client], sizeof(getname[]));
-	F2BR_SetClientName(client, getname[client]);
+	switch(TF2_IsPlayerPremium(client))	{
+		case	true:	F2BR_P2P_SetClientName(client, getname[client]);
+		case	false:	F2BR_F2P_SetClientName(client, getname[client]);
+	}
+	
 	HasClientChangedName[client] = false;
 }
 
@@ -140,48 +199,63 @@ public void OnClientSettingsChanged(int client)	{
 	else
 		ClientHasTagAlready[client] = false;
 	
-	if(HasClientChangedName[client])
-		F2BR_SetClientName(client, getname[client]);
+	if(HasClientChangedName[client])	{
+		switch(TF2_IsPlayerPremium(client))	{
+			case	true:	F2BR_P2P_SetClientName(client, getname[client]);
+			case	false:	F2BR_F2P_SetClientName(client, getname[client]);
+		}
+	}
 	
 	//Make sure to not make it go in a loop.
 	HasClientChangedName[client] = false;
 }
 
-void F2BR_SetClientName(int client, char[] name)	{
+void F2BR_P2P_SetClientName(int client, char[] name)	{
 	if(!IsValidClient(client))
 		return;
 		
-	char	f2p_newname[96], p2p_newname[96];
+	char newname[96];
 	
 	//Making sure the name wont turn weird.
-	if(StrEqual(F2PSuffix, ""))
-		FormatEx(f2p_newname, sizeof(f2p_newname), "%s %s", F2PPrefix, name);
-	else
-		FormatEx(f2p_newname, sizeof(f2p_newname), "%s %s %s", F2PPrefix, name, F2PSuffix);
-	
 	if(StrEqual(P2PSuffix, ""))
-		FormatEx(p2p_newname, sizeof(p2p_newname), "%s %s", P2PPrefix, name);
+		FormatEx(newname, sizeof(newname), "%s %s", P2PPrefix, name);
 	else
-		FormatEx(p2p_newname, sizeof(p2p_newname), "%s %s %s", P2PPrefix, name, P2PSuffix);
+		FormatEx(newname, sizeof(newname), "%s %s %s", P2PPrefix, name, P2PSuffix);
 	
-	if(!ClientHasTagAlready[client])	{
-		switch(TF2_IsPlayerPremium(client))	{		
-			case	true:	{
-				if(!StrEqual(P2PPrefix, ""))
-					SetClientInfo(client, "name", p2p_newname);
-			}
-			case	false:	{
-				if(!StrEqual(F2PPrefix, ""))
-					SetClientInfo(client, "name", f2p_newname);
-			}
-		}
-	}
+	if(StrEqual(P2PPrefix, ""))
+		return;	//If its empty, don't do anything.
+			
+	if(!ClientHasTagAlready[client])
+		SetClientInfo(client, "name", newname);
 }
 
-stock bool IsValidClient(int client)	{
-	if(!IsClientInGame(client))
+void F2BR_F2P_SetClientName(int client, char[] name)	{
+	if(!IsValidClient(client))
+		return;
+		
+	char newname[96];
+	
+	//Making sure the name wont turn weird.
+	if(StrEqual(P2PSuffix, ""))
+		FormatEx(newname, sizeof(newname), "%s %s", P2PPrefix, name);
+	else
+		FormatEx(newname, sizeof(newname), "%s %s %s", P2PPrefix, name, P2PSuffix);
+	
+	if(StrEqual(F2PPrefix, ""))
+		return;
+			
+	if(!ClientHasTagAlready[client])
+		SetClientInfo(client, "name", newname);
+}
+
+bool IsValidClient(int client)	{
+	if(client == 0)
 		return	false;
 	if(client < 1 || client > MaxClients)
+		return	false;
+	if(!IsClientInGame(client))
+		return	false;
+	if(!IsClientConnected(client))
 		return	false;
 	if(IsFakeClient(client))
 		return	false;
